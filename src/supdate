@@ -1,0 +1,95 @@
+#!/bin/bash
+
+function usage {
+
+_usage="
+  
+  supdate
+  
+  Handles snap upgrades.
+  
+  Usage $0 -u -t tue
+  
+  Options:
+  
+  -d - Disables snap updates altogether by blocking in hosts file.
+       Will also set the snap autoupdate timer to what is specified
+	   via -t option.
+
+  -e - Enable snap updates, reversing the modification. Does not touch
+       update timer.
+  
+  -t - Time at which autoupdates would occur. This is simply so that
+       it doesn't check 1000 times while disabled. Please follow the format
+	   given here https://snapcraft.io/docs/keeping-snaps-up-to-date
+
+  -u - Enables updates, runs snap refresh and then disables them. Run this
+       when we want to upgrade LXD basically.
+  
+  -h - Print this message.
+"
+echo "$_usage"
+}
+
+options=' det:uh '
+while getopts $options option; do
+    case "${option}" in
+       d) action=dis;;
+       e) action=en;;
+       t) time=$OPTARG;;
+       u) action=up;;
+       h) usage;;
+       \?) printf "Illegal option: -%s\n" "$OPTARG" >&2; usage;;
+    esac
+done
+
+if [ -z $action ]; then
+  echo "No action provided, run with -h to see options"
+  exit 1
+fi
+
+function disable {
+   if grep -q api.snapcraft.io /etc/hosts; then
+      echo "Snap update already blocked."
+	  exit 0
+   fi
+   # Set snap refresh to happen only on Wednesday 00:00, so it doesn't fail
+   # all the time wasting resources.
+   if [ -z $time ]; then
+     time=wed
+   fi
+   snap set system refresh.timer="$time"
+   # Backup hosts and block snap.
+   cat /etc/hosts > /etc/hosts.bak
+   echo "127.0.1.1 api.snapcraft.io" >> /etc/hosts && echo "Snap update disabled."
+}
+
+function enable {
+   # Find line number with snap and delete it
+   ln=$(awk '/snapcraft/ {print FNR}' /etc/hosts)
+   for i in $ln; do
+    sed -i "$i d" /etc/hosts && echo "Snap update enabled"
+   done 
+}
+
+function upgrade {
+   enable
+   snap refresh
+   disable
+}
+
+case $action in
+  
+  dis)
+    disable
+  ;;
+  
+  en)
+    enable
+  ;;
+  
+  up)
+    upgrade
+  ;;
+
+esac

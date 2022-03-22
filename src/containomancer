@@ -1,0 +1,165 @@
+#!/bin/bash
+
+function usage {
+_usage="
+
+Launches lxc containers with functional networking and basic packages installed.
+
+This works with the following arguments:
+
+-f   FQDN of the container.
+
+-i   IP address to be used.
+
+-t   Target cluster member node. This is optional. You need to provide the full name as shown in 'lxc cluster list'.
+
+-r1  Optional resolver 1, will default to 1.1.1.1 if not supplied.
+
+-r2  Optional resolver 2 will default 10.10.130.6 if not supplied.
+
+-o   Optional OS image,  defaults to debian/10/cloud. Note that the image you supply must be of
+     the /cloud variety, as this uses coud-init and custom non-networky stuff won't happen.
+          
+-n   Optional, provide path to the networking yaml config you've created. Defaults to /usr/local/etc/lxdkit_default_net.yaml
+
+-c   Optional, provide path to the user.user-data config you've created. Defaults to /usr/local/etc/lxdkit_default_data.yaml
+
+-p   Optional, name of profile/s to apply to the instance.
+
+-e   Optional, provide the interface name, eth0 doesn't work on netplanned machines for example.
+
+-v   Switch for launching VM instaed of container.
+
+-d   Switch to delete the specified containers as well as profiles, it will try to delete the container with the specified name using the -f param. 
+     You can use either an fqdn or just the name in lxd. 
+
+     
+Examples:
+
+ Create test container with IP and gateway:
+
+  $0 -f local.domain -i 10.0.0.4 -g 10.0.0.1
+
+ Create VM with IP, specific image, resolvers, profiles and interface
+
+  $0 -f local.domain -i 10.0.0.4 -g 10.0.0.1 -r1 1.0.0.1 -o ubuntu/focal/cloud -p instance -p network -v -e enp5s0
+
+ Delete an instance:
+
+  $0 -f local -d 
+
+"
+echo "$_usage"
+}
+
+# Gather params and set vars
+
+  ns1=1.1.1.1
+  ns2=1.0.0.1
+  os_image=debian/10/cloud
+  net_cfg=/etc/lxd-kit/lxdkit_default_net.yaml
+  data_cfg=/etc/lxd-kit/lxdkit_default_data.yaml
+
+  options=' f:i:g:r1:r2:o:hp:dc:n:t:p:e:v '
+  while getopts $options option; do
+      case "${option}" in
+         f) fqdn=$OPTARG;;
+         i) ip=$OPTARG;;
+         g) gw=$OPTARG;;
+         r1) ns1=$OPTARG;;
+         r2) ns2=$OPTARG;;
+         o) os_image=$OPTARG;;
+         c) data_cfg=$OPTARG;;
+         n) net_cfg=$OPTARG;;
+         d) to_delete=true;;
+         t) target=$OPTARG;;
+         v) vm=true;;
+         p) profiles+=("$OPTARG");;
+         e) interface=$OPTARG;;
+         h) usage;;
+         \?) printf "Illegal option: -%s\n" "$OPTARG" >&2; usage;;
+    esac
+  done
+
+  lxc_ct_name=$(echo "$fqdn" | cut -d'.' -f1)
+
+  if [ -z $lxc_ct_name ]; then
+    echo "Can't get container name. Please provide in local.domain.tld format"
+    usage
+    exit 1
+  fi
+
+# Deletion
+
+  if [ "$to_delete" = true ]; then
+    read -r -p "Warning, you are about to delete "$lxc_ct_name", please confirm (y/n)" response
+    if [[ ""$response"" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+      lxc stop $lxc_ct_name
+      lxc delete $lxc_ct_name
+      exit 0
+    else
+      echo "Canceling delete due to user input"
+      exit 0
+    fi
+  fi
+
+# Sanity checking and value replacement
+
+  if [ ! -f $net_cfg ] || [ ! -f $data_cfg ]; then
+    echo "$net_cfg and/or $data_cfg config yamls are missing!"
+    usage
+    exit 1
+  fi
+
+  rm -rf $net_cfg.$lxc_ct_name
+  rm -rf $data_cfg.$lxc_ct_name
+
+  if [ -z $ip ] || [ -z $gw ] || [ -z $ns1 ]; then 
+    echo "IP is: $ip, Gateway is: $gw, Recursor is: $ns1"
+    echo "Whichever is missing needs to be provided as an arg in order to proceed :("
+    usage
+    exit 1
+  fi
+
+  if [ -z $profiles ]; then
+    profile=default
+  else
+    profile=$(echo ${profiles[@]} | sed -e 's/ / -p /g')
+  fi
+
+  if [ "$vm" = true ]; then
+    vmflag="--vm"
+  else
+    vmflag=""
+  fi
+  
+# Doing the actual replacing
+ 
+  cp $net_cfg $net_cfg.$lxc_ct_name
+  cp $data_cfg $data_cfg.$lxc_ct_name
+  td_cfg=$data_cfg.$lxc_ct_name
+  tn_cfg=$net_cfg.$lxc_ct_name
+  sed -i "s/ipaddr/      address: $ip/g" $tn_cfg
+  sed -i "s/GW/      gateway: $gw/g" $tn_cfg
+  sed -i "s/NS1/       - $ns1/g" $tn_cfg
+  sed -i "s/NS2/       - $ns2/g" $tn_cfg
+  sed -i "s/FQDN/fqdn: $fqdn/g" $td_cfg
+
+  if [ ! -z $interface ]; then
+    sed -i "s/eth0/$interface/g" $tn_cfg
+  fi
+
+# Launch container with config yamls
+
+  ctd_cfg=$(cat "$td_cfg")
+  ctn_cfg=$(cat "$tn_cfg")
+  
+  if [ -z $target ]; then
+    lxc launch images:$os_image $lxc_ct_name -p $profile --config=user.network-config="$ctn_cfg" --config=user.user-data="$ctd_cfg" $vmflag
+    lxc config set $lxc_ct_name boot.autostart=true
+  else
+    lxc launch images:$os_image $lxc_ct_name --target "$target" -p $profile --config=user.network-config="$ctn_cfg" --config=user.user-data="$ctd_cfg" $vmflag
+    lxc config set $lxc_ct_name boot.autostart=true
+  fi
+
+  rm -rf $td_cfg $tn_cfg

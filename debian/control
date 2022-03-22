@@ -1,0 +1,12 @@
+Source: lxd-kit
+Section: utils
+Priority: optional
+Maintainer: Lachezar Bogdanov <lachezar.bogdanov@hostwaycorp.com>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.8
+
+Package: lxd-kit
+Architecture: any
+Section: utils
+Priority: optional
+Description: LXD Automation bits

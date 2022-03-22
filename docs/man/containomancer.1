@@ -1,0 +1,50 @@
+.\" Manpage for containomancer
+.\" 
+.TH man 8 "08 Mar 2021" "1.0" "containomancer man page"
+.SH NAME
+
+containomancer \- launch new LXD container instances with predefined networking and base packages installed.
+
+.SH SYNOPSIS
+
+containomancer -f test.stg.tampa.hostway -i 10.10.171.38 -g 10.10.171.1
+
+.SH DESCRIPTION
+
+This script helps us launch containers using predefined network configurations, such as IP address, resolvers as well as a hostname. To do this we utilize LXD's support for cloud-init. The way that would work is by creating profiles, particularly passing data in the user.networkconfig and user.user data sections of the yaml used to configure the individual profile. All of that is great but can not be adjusted at launch time as lxd/c has no vision inside the sections in question, it just passes them on to cloud init running in the container. This means we need some sort of wrapper script like this, which would appear to be on the fly for the end user.
+
+The tool uses yaml configs to add at runtime to service the user.network-config and user.user-data sections of the default profile. Thusly it manages to combine both the default profile settings, say for CPU cores, or ram and our custom networking stuff which LXC can't easily set with flags. 
+
+The standard configs are placed in /usr/local/etc/lxdkit_default_data.yaml and /usr/local/etc/lxdkit_default_net.yaml (net is for network, data for user data). You can edit these so for example you install additional applications, or add paths to your own at runtime using the flags described below. The default files (or provided paths to them) are needed in order for this to actually run. It will use these to create the temp files that actually get passed along to lxd and once done it will remove the temp files.
+
+
+It is important to use cloud based images as those come with support for cloud init. Otherwise this won't work.
+
+.SH OPTIONS
+
+-f - FQDN of the container.
+
+-i - IP address to be used.
+
+-r1 - First resolver (Optional, will default to 10.10.130.5 if not supplied).
+-r2 - Second resolver (Optional, will default 10.10.130.6 if not supplied).
+
+-o - OS image (Optional, defaults to debian/10/cloud). Note that the image you supply must be of.
+       the /cloud variety, as this uses coud-init and custom non-networky stuff won't happen.
+
+-n - Optional, provide path to the networking yaml config you've created. Defaults to /usr/local/etc/lxdkit_default_net.yaml
+
+-c - Optional, provide path to the user.user-data config you've created. Defaults to /usr/local/etc/lxdkit_default_data.yaml
+
+-d - Deletes the specified containers as well as profiles, it will try to delete a container with the name being the localpart of the fqdn provided in the -f argument"
+
+-h - print help message
+
+example:
+
+containomancer -f test.stg.tampa.hostway -i 10.10.171.38 -g 10.10.171.1"
+
+.SH SEE ALSO
+bash(8), LXC has no manpage...
+.SH AUTHOR
+Lachezar Bogdanov (lachezar.bogdanov@hostwaycorp.com)

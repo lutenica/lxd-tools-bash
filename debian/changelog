@@ -1,0 +1,14 @@
+lxd-kit (1.0.0) focal; urgency=low
+
+  * Now supports vm creation via the -v switch.
+  * With VMs they use netplan so added an -e argument for speicifying the interface.
+  * Allows profile specification using -p $profilename (or -p $1 -p $2 for mutliple) 
+  * Container creation will also set boot.autostart to true. 
+  * Containomancer now accepts -t argument to choose which cluster member to create it on
+  * You can now -d for delete with just "-f $local.$domain -d" and delete, no need to specify ip,gw etc.
+  * Changing some verbiage in the script to make it's results clearer.
+  * Adding supdate script to help with managing snap updates
+  * Fixing default location for config files to /etc from /usr/local/etc
+  * Initial release
+
+ -- Ummon <zidancho@gmai.com>  Tue, 22 Mar 2022 17:31:46 +0200

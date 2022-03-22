@@ -1,0 +1,12 @@
+#cloud-config
+FQDN
+manage_etc_hosts: true
+package_upgrade: true
+packages:
+ - wget
+ - virt-what
+ - lsb-release
+ - less
+ - vim
+runcmd:
+ - [ apt-get, update, -y ]
