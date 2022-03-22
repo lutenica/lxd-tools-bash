@@ -1,6 +1,8 @@
 # lxd-kit
 The purpose of this project is to contain tools that are used for automating LXD management.
 
+It also contains the required debian config to package as .deb.
+
 ## containomancer
 ### Description
 This script helps us launch containers using predefined network configurations, such as IP address, resolvers as well as a hostname. To do this we utilize LXD's support for cloud-init. The way that would work is by creating profiles, particularly passing data in the user.networkconfig and user.user data sections of the yaml used to configure the individual profile. All of that is great but can not be adjusted at launch time as lxd/c has no vision inside the sections in question, it just passes them on to cloud init running in the container. This means we need some sort of wrapper script like this, which would appear to be on the fly for the end user. 
